@@ -35,7 +35,7 @@ def find_col(line):
 
 def lex_line(line):
     tokens = line.split()
-    for (idx, token) in enumerate(tokens):
+    for token in tokens:
         yield (find_col(line), token)
 
 def lex_file(program, filepath):
@@ -106,7 +106,6 @@ def compile_program(source_path, output_path):
 
         out.write("BITS 64\n") 
         out.write("global _start\n") 
-        out.write("section .text\n\n")
         out.write("dump:\n")
         out.write("    push    rbp\n")
         out.write("    mov     rbp, rsp\n")
@@ -241,7 +240,7 @@ if __name__ == "__main__":
     (flag, argv) = unconst(argv) 
     if flag == "-r":
       run_cmd(["./%s" % output_name])
-    else:
+    elif flag is not None:
       print("[ERROR] Flag `%s` not found" % flag)
   elif mode == "help":
     usage()

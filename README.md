@@ -12,3 +12,11 @@ Roudmap for Morth (Milestones)
 - [ ] Turing-complete 
 - [ ] Dynamically typed
 - [ ] Optimized 
+
+## Workflow of the compiler
+- Analysing Source File
+- -> Converting Words in Operation Codes
+- -> Generating Assembly Code
+- -> Compiling Assembly with NASM
+- -> Linking Objectfile with the GNU Linker
+- -> Selfcontaining Executable
