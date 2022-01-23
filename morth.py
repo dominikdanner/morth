@@ -18,13 +18,14 @@ OP_MINUS = iota()
 OP_EQUAL = iota()
 OP_PRINT = iota()
 OP_DUP = iota() 
+OP_IF = iota()
+OP_END = iota()
 OP_COUNT = iota()
 
 def load_program_from_file(file_path):
   try:
     with open(file_path,"r") as f:
-        program =  f.readlines()
-        lexed_program = lex_file(program, file_path)
+        lexed_program = lex_file(f.readlines(), file_path)
         return parse_as_op(lexed_program)
   except FileNotFoundError:
     print("[ERROR] File `%s` not found" % file_path)
@@ -47,7 +48,9 @@ def parse_token_as_op(token):
     (filepath, row, col, word) = token
     loc = (row, col)
 
-    if word == "print":
+    assert OP_COUNT == 8, "Exhausted op handling in parse_token_as_op" 
+
+    if word == "print": 
         yield {'type': OP_PRINT, 'loc': loc}
     elif word == "+":
         yield {'type': OP_PLUS, 'loc': loc}
@@ -57,48 +60,68 @@ def parse_token_as_op(token):
         yield {'type': OP_EQUAL, 'loc': loc}
     elif word == "dup":
         yield {'type': OP_DUP, 'loc': loc}
+    elif word == "if":
+        yield {'type': OP_IF, 'loc': loc}
+    elif word == "end":
+        yield {'type': OP_END, 'loc': loc}
     else:
         try:
-            yield {'type': OP_PUSH, 'value': int(word) ,'loc': loc}
+            yield {'type': OP_PUSH, 'value': int(word) ,'loc': loc} 
         except ValueError:
             print("%s:%s:%s: `%s` does not exist" % (filepath, row, col, word))
             exit(1)
 
+def cross_reference_program(program):
+    ip = 0
+    while ip in range(len(program)):
+        op = program[ip]
+
+        if op['type'] == OP_IF:
+            program[ip] = {'type': op['type'], 'ref': ip, 'loc': op['loc']}
+        if op['type'] == OP_END:
+            program[ip] = {'type': op['type'], 'ref': ip, 'loc': op['loc']}
+
+        ip += 1
+
+    return program
+
 # A Word is a turple that the lexer generated
 # It contains `filepath, location: (row, col), token`
 def parse_as_op(program):
-  return [op for Word in program 
-          for op in parse_token_as_op(Word)]
+  return cross_reference_program([op for Word in program 
+          for op in parse_token_as_op(Word)])
     
 def simulate_program(file_path):
     program = load_program_from_file(file_path)
+    print(program)
+    assert OP_COUNT == 8, "Exhausted op handling in simulate_program"
 
     stack = []
-    for Word in program:
-      if Word['type'] == OP_PUSH:
+    ip = 0
+    for op in program:
+      if op['type'] == OP_PUSH:
         stack.append(Word['type'][1])
-      elif Word['type'] == OP_PLUS:
+      elif op['type'] == OP_PLUS:
         a = stack.pop()
         b = stack.pop()
         stack.append(b + a)
-      elif Word['type'] == OP_MINUS:
+      elif op['type'] == OP_MINUS:
         a = stack.pop()
         b = stack.pop()
         stack.append(b - a)
-      elif Word['type'] == OP_DUMP:
+      elif op['type'] == OP_DUMP:
         if len(stack) == 0:
           print("Cannot `dump` from empty stack")
           exit(1)
         print(stack.pop())
-      elif Word['type'] == OP_EQUAL:
+      elif op['type'] == OP_EQUAL:
         a = stack.pop()
         b = stack.pop()
         stack.append(int(a == b))
-      elif Word['type'] == OP_DUP:
+      elif op['type'] == OP_DUP:
           a = stack.pop()
-          b = a
           stack.append(a)
-          stack.append(b)
+          stack.append(a)
 
 def compile_program(source_path, output_path):
     with open(output_path, "w") as out:
@@ -164,7 +187,8 @@ def compile_program(source_path, output_path):
         out.write("    leave\n")
         out.write("    ret\n\n")
         out.write("_start:\n")
-    
+
+        assert OP_COUNT == 6, "Exhausted op handling in simulate_program"
         for op in program:
             if op['type'] == OP_PUSH:
               out.write("    ;; -- push --\n")
@@ -195,9 +219,8 @@ def compile_program(source_path, output_path):
               out.write("    push rcx\n")
             elif op['type'] == OP_DUP:
               out.write("    pop rax\n")
-              out.write("    mov rbx, rax\n")
               out.write("    push rax\n")
-              out.write("    push rbx\n")
+              out.write("    push rax\n")
         
         out.write("    mov rax, 60\n")
         out.write("    syscall\n")
