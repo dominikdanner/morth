@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 import sys
 import subprocess
+import os
 
 iota_counter = 0
 def iota(reset=False):
@@ -15,27 +16,9 @@ OP_PUSH = iota(True)
 OP_PLUS = iota()
 OP_MINUS = iota()
 OP_EQUAL = iota()
-OP_DUMP = iota()
-OP_DUP = iota()
+OP_PRINT = iota()
+OP_DUP = iota() 
 OP_COUNT = iota()
-
-def push(x):
-  return (OP_PUSH, x)
-
-def equal():
-  return (OP_EQUAL,)
-
-def dump():
-  return (OP_DUMP,)
-
-def plus():
-  return (OP_PLUS,)
-
-def minus():
-  return (OP_MINUS,)
-
-def dup():
-  return (OP_DUP,)
 
 def load_program_from_file(file_path):
   try:
@@ -55,32 +38,31 @@ def lex_line(line):
     for (idx, token) in enumerate(tokens):
         yield (find_col(line), token)
 
-def lex_file(program, file_path):
-    return [{"filepath": file_path, "loc": (row, col), "token":token}
+def lex_file(program, filepath):
+    return [(filepath, row, col, token)
             for(row, line) in enumerate(program)
             for(col, token) in lex_line(line)]
-  
-# a Word is the turple generated from the lexer
-def parse_token_as_op(Word):
-    loc = Word['loc']
 
-    if Word["token"] == "print":
-        yield {'type': dump(), 'loc': loc}
-    elif Word["token"] == "+":
-        yield {'type': plus(), 'loc': loc}
-    elif Word["token"] == "-":
-        yield {'type': minus(), 'loc': loc}
-    elif Word["token"] == "=":
-        yield {'type': equal(), 'loc': loc}
-    elif Word["token"] == "dup":
-        yield {'type': dup(), 'loc': loc}
+def parse_token_as_op(token):
+    (filepath, row, col, word) = token
+    loc = (row, col)
+
+    if word == "print":
+        yield {'type': OP_PRINT, 'loc': loc}
+    elif word == "+":
+        yield {'type': OP_PLUS, 'loc': loc}
+    elif word == "-":
+        yield {'type': OP_MINUS, 'loc': loc}
+    elif word == "=":
+        yield {'type': OP_EQUAL, 'loc': loc}
+    elif word == "dup":
+        yield {'type': OP_DUP, 'loc': loc}
     else:
         try:
-            yield {'type': push(int(Word["token"])), 'loc': loc}
+            yield {'type': OP_PUSH, 'value': int(word) ,'loc': loc}
         except ValueError:
-            print("%s:%s:%s: `%s` does not exist" % (Word["filepath"], Word["loc"][0], Word["loc"][1], Word["token"]))
+            print("%s:%s:%s: `%s` does not exist" % (filepath, row, col, word))
             exit(1)
-    
 
 # A Word is a turple that the lexer generated
 # It contains `filepath, location: (row, col), token`
@@ -93,34 +75,34 @@ def simulate_program(file_path):
 
     stack = []
     for Word in program:
-      if Word['type'][0] == OP_PUSH:
+      if Word['type'] == OP_PUSH:
         stack.append(Word['type'][1])
-      elif Word['type'][0] == OP_PLUS:
+      elif Word['type'] == OP_PLUS:
         a = stack.pop()
         b = stack.pop()
         stack.append(b + a)
-      elif Word['type'][0] == OP_MINUS:
+      elif Word['type'] == OP_MINUS:
         a = stack.pop()
         b = stack.pop()
         stack.append(b - a)
-      elif Word['type'][0] == OP_DUMP:
+      elif Word['type'] == OP_DUMP:
         if len(stack) == 0:
           print("Cannot `dump` from empty stack")
           exit(1)
         print(stack.pop())
-      elif Word['type'][0] == OP_EQUAL:
+      elif Word['type'] == OP_EQUAL:
         a = stack.pop()
         b = stack.pop()
         stack.append(int(a == b))
-      elif Word['type'][0] == OP_DUP:
+      elif Word['type'] == OP_DUP:
           a = stack.pop()
           b = a
           stack.append(a)
           stack.append(b)
 
-def compile_program(file_path):
-    with open("output.asm", "w") as out:
-        program = load_program_from_file(file_path)
+def compile_program(source_path, output_path):
+    with open(output_path, "w") as out:
+        program = load_program_from_file(source_path)
 
         out.write("BITS 64\n") 
         out.write("global _start\n") 
@@ -184,26 +166,26 @@ def compile_program(file_path):
         out.write("    ret\n\n")
         out.write("_start:\n")
     
-        for Word in program:
-            if Word['type'][0] == OP_PUSH:
+        for op in program:
+            if op['type'] == OP_PUSH:
               out.write("    ;; -- push --\n")
-              out.write("    push %s\n" % Word["type"][1])
-            if Word['type'][0] == OP_DUMP:
+              out.write("    push %s\n" % op['value'])
+            elif op['type'] == OP_PRINT:
               out.write("    ;; -- dump --\n")
               out.write("    pop rdi\n")
               out.write("    call dump\n")
-            if Word['type'][0] == OP_PLUS:
+            elif op['type'] == OP_PLUS:
               out.write("    ;; -- plus --\n")
               out.write("    pop rax\n")
               out.write("    pop rdx\n")
               out.write("    add rax, rdx\n")
               out.write("    push rax\n")
-            if Word['type'][0] == OP_MINUS:
+            elif op['type'] == OP_MINUS:
               out.write("    pop rax\n")
               out.write("    pop rdx\n")
               out.write("    sub rdx, rax\n")
               out.write("    push rdx\n")
-            if Word['type'][0] == OP_EQUAL:
+            elif op['type'] == OP_EQUAL:
               out.write("    ;; -- equal --\n")
               out.write("    mov rcx, 0\n")
               out.write("    mov rbx, 1\n")
@@ -212,7 +194,7 @@ def compile_program(file_path):
               out.write("    cmp rax, rdx\n")
               out.write("    cmove rcx, rbx\n")
               out.write("    push rcx\n")
-            if Word['type'][0] == OP_DUP:
+            elif op['type'] == OP_DUP:
               out.write("    pop rax\n")
               out.write("    mov rbx, rax\n")
               out.write("    push rax\n")
@@ -229,8 +211,8 @@ def unconst(target):
     return (None, None) 
 
 def run_cmd(cmd):
-  print("[CMD] %s" % cmd)
-  subprocess.run(cmd)
+    print("[CMD] %s" % ' '.join(cmd))
+    subprocess.call(cmd)
 
 def usage():
     print("Usage: <MODE> <ARGUMENTS> <FLAGS>")
@@ -248,15 +230,17 @@ if __name__ == "__main__":
     print("[INFO] Simulating %s" % target_file)
     simulate_program(target_file)
   elif mode == "com":
-    (target_file, argv) = unconst(argv) 
-    print("[INFO] Generting output.asm")
-    compile_program(target_file)
-    run_cmd(["nasm", "-f", "elf64", "output.asm", "-o", "output.o"])
-    run_cmd(["ld", "output.o", "-o", "build"])
+    (source_path, argv) = unconst(argv) 
+    output_name = os.path.basename(source_path).split(".")[0] 
+
+    print("[INFO] Generating %s.asm" % output_name)
+    compile_program(source_path, "%s.asm" % output_name)
+    run_cmd(["nasm", "-f", "elf64", "%s.asm" % output_name, "-o", "%s.o" % output_name])
+    run_cmd(["ld", "%s.o" % output_name, "-o", "%s" % output_name])
     
     (flag, argv) = unconst(argv) 
     if flag == "-r":
-      run_cmd(["./build"])
+      run_cmd(["./%s" % output_name])
     else:
       print("[ERROR] Flag `%s` not found" % flag)
   elif mode == "help":
