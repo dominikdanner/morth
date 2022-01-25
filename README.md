@@ -13,6 +13,17 @@ Roudmap for Morth (Milestones)
 - [ ] Dynamically typed
 - [ ] Optimized 
 
+#### Syntax Example
+
+```python
+30 30 + 60 = if
+    100 print
+end
+
+// Output: 100
+
+```
+
 ## Workflow of the compiler
 - Analysing Source File
 - -> Converting Words in Operation Codes

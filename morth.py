@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 import sys
 import subprocess
-import os
+import os 
 
 iota_counter = 0
 def iota(reset=False):
@@ -14,7 +14,7 @@ def iota(reset=False):
 
 OP_PUSH = iota(True)
 OP_PLUS = iota()
-OP_MINUS = iota()
+OP_MINUS = iota() 
 OP_EQUAL = iota()
 OP_PRINT = iota()
 OP_DUP = iota() 
@@ -28,8 +28,8 @@ def load_program_from_file(file_path):
         lexed_program = lex_file(f.readlines(), file_path)
         return parse_as_op(lexed_program)
   except FileNotFoundError:
-    print("[ERROR] File `%s` not found" % file_path)
-    exit(1)
+      print("[ERROR] File `%s` not found" % file_path)
+      exit(1)
 
 def find_col(line):
     return 0
@@ -73,14 +73,19 @@ def parse_token_as_op(token):
 
 def cross_reference_program(program):
     ip = 0
+    stack = []
     while ip in range(len(program)):
         op = program[ip]
-
         if op['type'] == OP_IF:
-            program[ip] = {'type': op['type'], 'ref': ip, 'loc': op['loc']}
-        if op['type'] == OP_END:
-            program[ip] = {'type': op['type'], 'ref': ip, 'loc': op['loc']}
-
+            stack.append(ip)
+        elif op['type'] == OP_END:
+            block_ip = stack.pop()
+            if program[block_ip]['type'] == OP_IF:
+                program[block_ip]['jmp'] = ip
+                if ip + 1 >= len(program):
+                    program[ip]['jmp'] = ip
+                else:
+                    program[ip]['jmp'] = ip + 1
         ip += 1
 
     return program
@@ -93,36 +98,53 @@ def parse_as_op(program):
     
 def simulate_program(file_path):
     program = load_program_from_file(file_path)
-    print(program)
     assert OP_COUNT == 8, "Exhausted op handling in simulate_program"
 
     stack = []
     ip = 0
-    for op in program:
-      if op['type'] == OP_PUSH:
-        stack.append(Word['type'][1])
-      elif op['type'] == OP_PLUS:
-        a = stack.pop()
-        b = stack.pop()
-        stack.append(b + a)
-      elif op['type'] == OP_MINUS:
-        a = stack.pop()
-        b = stack.pop()
-        stack.append(b - a)
-      elif op['type'] == OP_DUMP:
-        if len(stack) == 0:
-          print("Cannot `dump` from empty stack")
-          exit(1)
-        print(stack.pop())
-      elif op['type'] == OP_EQUAL:
-        a = stack.pop()
-        b = stack.pop()
-        stack.append(int(a == b))
-      elif op['type'] == OP_DUP:
-          a = stack.pop()
-          stack.append(a)
-          stack.append(a)
+    while ip in range(len(program)):
+        op = program[ip]
 
+        if op['type'] == OP_PUSH:
+            stack.append(op['value'])
+            ip += 1
+        elif op['type'] == OP_PLUS:
+            a = stack.pop()
+            b = stack.pop()
+            stack.append(b + a)
+            ip += 1
+        elif op['type'] == OP_MINUS:
+            a = stack.pop()
+            b = stack.pop()
+            stack.append(b - a)
+            ip += 1
+        elif op['type'] == OP_PRINT:
+            if len(stack) == 0:
+                print("Cannot `dump` from empty stack")
+                exit(1)
+            print(stack.pop())
+            ip += 1
+        elif op['type'] == OP_EQUAL:
+            a = stack.pop()
+            b = stack.pop()
+            stack.append(int(a == b))
+            ip += 1
+        elif op['type'] == OP_DUP:
+            a = stack.pop()
+            stack.append(a)
+            stack.append(a)
+            ip += 1
+        elif op['type'] == OP_IF:
+            a = stack.pop()
+            if a == 0:
+                ip = op['jmp']
+            elif a == 1:
+                ip += 1
+            else:
+                assert False, "If can only process boolean values"
+        elif op['type'] == OP_END:
+            ip += 1
+            
 def compile_program(source_path, output_path):
     with open(output_path, "w") as out:
         program = load_program_from_file(source_path)
@@ -188,7 +210,7 @@ def compile_program(source_path, output_path):
         out.write("    ret\n\n")
         out.write("_start:\n")
 
-        assert OP_COUNT == 6, "Exhausted op handling in simulate_program"
+        assert OP_COUNT == 8, "Exhausted op handling in simulate_program"
         for op in program:
             if op['type'] == OP_PUSH:
               out.write("    ;; -- push --\n")
