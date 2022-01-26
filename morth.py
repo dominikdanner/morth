@@ -74,6 +74,9 @@ def parse_token_as_op(token):
 def cross_reference_program(program):
     ip = 0
     stack = []
+
+    assert OP_COUNT == 8, "Exhausted op handling in parse_token_as_op" 
+
     while ip in range(len(program)):
         op = program[ip]
         if op['type'] == OP_IF:
@@ -85,7 +88,7 @@ def cross_reference_program(program):
                 if ip + 1 >= len(program):
                     program[ip]['jmp'] = ip
                 else:
-                    program[ip]['jmp'] = ip + 1
+                    program[ip]['jmp'] = ip
         ip += 1
 
     return program
@@ -211,6 +214,7 @@ def compile_program(source_path, output_path):
         out.write("_start:\n")
 
         assert OP_COUNT == 8, "Exhausted op handling in simulate_program"
+
         for op in program:
             if op['type'] == OP_PUSH:
               out.write("    ;; -- push --\n")
@@ -226,6 +230,7 @@ def compile_program(source_path, output_path):
               out.write("    add rax, rdx\n")
               out.write("    push rax\n")
             elif op['type'] == OP_MINUS:
+              out.write("    ;; -- minus --\n")
               out.write("    pop rax\n")
               out.write("    pop rdx\n")
               out.write("    sub rdx, rax\n")
@@ -240,11 +245,21 @@ def compile_program(source_path, output_path):
               out.write("    cmove rcx, rbx\n")
               out.write("    push rcx\n")
             elif op['type'] == OP_DUP:
+              out.write("    ;; -- duplicate --\n")
               out.write("    pop rax\n")
               out.write("    push rax\n")
               out.write("    push rax\n")
+            elif op['type'] == OP_IF:
+              out.write("    ;; -- if --\n")
+              out.write("    pop rax\n")
+              out.write("    test rax, rax\n")
+              out.write("    jz addr_%d\n" % op['jmp'])
+            elif op['type'] == OP_END:
+                out.write("    ;; -- end --\n")
+                out.write("addr_%d:\n" % op['jmp'])
         
         out.write("    mov rax, 60\n")
+        out.write("    mov rdi, 0\n")
         out.write("    syscall\n")
 
 def unconst(target):
