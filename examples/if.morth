@@ -1,0 +1,9 @@
+// True
+30 dup + 60 = if
+    1 print
+end
+
+// False
+30 dup + 61 = if
+    2 print
+end
