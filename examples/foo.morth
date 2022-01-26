@@ -1,0 +1,15 @@
+30 dup + 50 = if
+    1 print
+end
+
+30 dup + 60 = if
+    2 print
+end
+
+30 dup + 50 = if
+    3 print
+end
+
+30 dup + 50 = if
+    4 print
+end
